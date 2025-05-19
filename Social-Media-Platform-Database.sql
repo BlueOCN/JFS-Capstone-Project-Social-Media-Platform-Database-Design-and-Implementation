@@ -262,9 +262,27 @@ LIMIT 1;
 */
 
 -- Add a new post to the platform.
+INSERT INTO Posts (user_id, post_text, media_url) VALUES
+(1, 'Happy Sunday everyone!', '/images/sunset.jpg');
+
 -- Comment on a post.
+INSERT INTO Comments (post_id, user_id, comment_text) VALUES
+(4, 2, 'Happy Sunday, Alice!');
+
 -- Update user profile information.
+UPDATE Users
+SET 
+    username = 'Alice',
+    email = 'alice@example.com',
+    password = 'hashedpassword1',
+    date_of_birth = '1995-06-15',
+    profile_picture = '/images/alice.jpg'
+WHERE user_id = 1;
+
 -- Remove a like from a post.
+DELETE FROM Likes
+WHERE like_id = 4 AND post_id = 1
+LIMIT 1;
 
 
 /*
