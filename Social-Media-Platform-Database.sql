@@ -18,6 +18,8 @@ CREATE TABLE Users (
     password VARCHAR(255) NOT NULL CHECK(LENGTH(password) >= 8), 
     date_of_birth DATE NOT NULL, 
     profile_picture VARCHAR(255),
+    post_count INT NOT NULL DEFAULT 0,
+    follower_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX(username),
@@ -290,13 +292,85 @@ LIMIT 1;
 */
 
 -- Identify users with the most followers.
+SELECT 
+    f.following_id AS user_id,
+    u.username,
+    COUNT(f.follower_id) AS follower_count
+FROM Follows f
+JOIN Users u ON f.following_id = u.user_id
+GROUP BY f.following_id, u.username
+ORDER BY follower_count DESC, u.username ASC
+LIMIT 3;
+
 -- Find the most active users based on post count and interaction.
+SELECT 
+    u.user_id,
+    u.username,
+    COALESCE(comment_count, 0) AS comment_count,
+    COALESCE(post_count, 0) AS post_count
+FROM Users u
+LEFT JOIN (
+    SELECT user_id, COUNT(DISTINCT post_id) AS post_count
+    FROM Posts
+    GROUP BY user_id
+) p ON u.user_id = p.user_id
+LEFT JOIN (
+    SELECT user_id, COUNT(DISTINCT comment_id) AS comment_count
+    FROM Comments
+    GROUP BY user_id
+) c ON u.user_id = c.user_id
+ORDER BY comment_count DESC, post_count DESC
+LIMIT 5;
+
 -- Calculate the average number of comments per post.
+SELECT 
+    (SELECT COUNT(*) FROM Comments) / 
+    (SELECT COUNT(*) FROM Posts) AS avg_comments_per_post;
+
 
 /*
     Advanced Topics
 */
 
 -- Automatically notify users of new messages.
+CREATE TRIGGER after_message_insert
+AFTER INSERT ON Messages
+FOR EACH ROW
+INSERT INTO Notifications (user_id, notification_text, notification_date, is_read)
+VALUES (NEW.receiver_id, CONCAT('New message from ', (SELECT username FROM Users WHERE user_id = NEW.sender_id)), NOW(), 0);
+
+
 -- Update post counts and follower counts for users.
+Update Users SET follower_count = (
+    SELECT COUNT(*) FROM Follows WHERE following_id = user_id
+);
+
+UPDATE Users u SET u.post_count = (
+    SELECT COUNT(*) FROM Posts p WHERE p.user_id = u.user_id
+);
+
+CREATE TRIGGER after_post_insert
+AFTER INSERT ON Posts
+FOR EACH ROW
+UPDATE Users SET post_count = post_count + 1 WHERE user_id = NEW.user_id;
+
+CREATE TRIGGER after_follows_insert
+AFTER INSERT ON Follows
+FOR EACH ROW
+UPDATE Users SET follower_count = follower_count + 1 WHERE user_id = NEW.following_id;
+
+
 -- Generate personalized recommendations for users to follow.
+SELECT 
+    f1.follower_id AS user_id,
+    u.username AS recommended_user,
+    COUNT(DISTINCT f2.follower_id) AS mutual_followers
+FROM Follows f1
+JOIN Follows f2 ON f1.following_id = f2.following_id
+JOIN Users u ON f2.follower_id = u.user_id
+WHERE f1.follower_id = 3
+AND f2.follower_id != f1.follower_id
+AND f2.follower_id NOT IN (SELECT following_id FROM Follows WHERE follower_id = f1.follower_id) -- Avoid already followed users
+GROUP BY f2.follower_id, u.username
+ORDER BY mutual_followers DESC
+LIMIT 5;
