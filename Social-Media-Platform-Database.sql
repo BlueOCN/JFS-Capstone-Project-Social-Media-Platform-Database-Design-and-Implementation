@@ -125,7 +125,11 @@ DESCRIBE Notifications;
 INSERT INTO Users (username, email, password, date_of_birth, profile_picture) VALUES
 ('Alice', 'alice@example.com', 'hashedpassword1', '1995-06-15', '/images/alice.jpg'),
 ('Bob', 'bob@example.com', 'hashedpassword2', '1990-08-22', '/images/bob.jpg'),
-('Charlie', 'charlie@example.com', 'hashedpassword3', '1998-12-05', '/images/charlie.jpg');
+('Charlie', 'charlie@example.com', 'hashedpassword3', '1998-12-05', '/images/charlie.jpg'),
+('David', 'david@example.com', 'hashedpassword4', '1993-04-17', '/images/david.jpg'),
+('Emma', 'emma@example.com', 'hashedpassword5', '1989-10-30', '/images/emma.jpg'),
+('Frank', 'frank@example.com', 'hashedpassword6', '2000-01-25', '/images/frank.jpg');
+
 
 -- Include posts.
 INSERT INTO Posts (user_id, post_text, media_url) VALUES
@@ -136,12 +140,14 @@ INSERT INTO Posts (user_id, post_text, media_url) VALUES
 -- Include comments.
 INSERT INTO Comments (post_id, user_id, comment_text) VALUES
 (1, 2, 'Welcome, Alice! Excited to see your posts!'),
+(1, 2, 'Happy posting!'),
 (2, 3, 'Sushi is the best! Where did you eat?'),
 (3, 1, 'Glad to hear! Hope you have an amazing day!');
 
 -- Include likes.
 INSERT INTO Likes (post_id, user_id) VALUES
 (1, 3),
+(1, 2),
 (2, 1),
 (3, 2);
 
@@ -149,7 +155,8 @@ INSERT INTO Likes (post_id, user_id) VALUES
 INSERT INTO Follows (follower_id, following_id) VALUES
 (1, 2),
 (2, 3),
-(3, 1);
+(3, 1),
+(4, 1);
 
 -- Include messages.
 INSERT INTO Messages (sender_id, receiver_id, message_text, is_read) VALUES
@@ -160,6 +167,7 @@ INSERT INTO Messages (sender_id, receiver_id, message_text, is_read) VALUES
 -- Include notifications.
 INSERT INTO Notifications (user_id, notification_text, is_read) VALUES
 (1, 'Bob started following you.', 0),
+(1, 'This is a notification.', 0),
 (2, 'Charlie liked your post.', 1),
 (3, 'Alice commented on your post.', 0);
 
@@ -178,11 +186,75 @@ SELECT * FROM Notifications;
 */
 
 -- Retrieve the posts and activities of a user's timeline.
+SELECT 
+    p.post_id,
+    p.post_text,
+    p.post_date,
+    p.media_url,
+    u.username AS author,
+    (SELECT GROUP_CONCAT(c.comment_text SEPARATOR ' | ') 
+     FROM Comments c 
+     WHERE c.post_id = p.post_id) AS all_comments,
+    (SELECT GROUP_CONCAT(cu.username SEPARATOR ', ') 
+     FROM Users cu 
+     JOIN Comments c ON cu.user_id = c.user_id 
+     WHERE c.post_id = p.post_id) AS commenters,
+    (SELECT COUNT(DISTINCT l.user_id) 
+     FROM Likes l 
+     WHERE l.post_id = p.post_id) AS like_count
+FROM Posts p
+JOIN Users u ON p.user_id = u.user_id
+WHERE p.user_id = 1
+ORDER BY p.post_date DESC;
+
 -- Retrieve the comments and likes for a specific post.
+SELECT
+    c.post_id,
+    c.comment_id,
+    c.comment_text,
+    COUNT(l.like_id) AS post_total_likes
+FROM Comments c
+JOIN Likes l ON c.post_id = l.post_id
+WHERE c.post_id = 1
+GROUP BY c.comment_id
+ORDER BY c.comment_date ASC;
+
 -- Retrieve the list of followers for a user.
+SELECT 
+    u.user_id AS follower_id,
+    u.username AS follower_username,
+    f.following_id,
+    u2.username AS following_username,
+    f.follow_date
+FROM Users u
+JOIN Follows f ON u.user_id = f.follower_id
+JOIN Users u2 ON f.following_id = u2.user_id
+WHERE f.following_id = 1
+ORDER BY f.follow_date ASC, u.username DESC;
+
 -- Retrieve unread messages for a user.
+SELECT * FROM Messages m
+WHERE m.is_read = FALSE 
+AND m.receiver_id = 1;
+
 -- Retrieve the most liked posts.
+SELECT 
+    p.post_id,
+    P.post_text,
+    p.media_url,
+    COUNT(DISTINCT like_id) AS total_likes
+
+FROM Posts p
+JOIN Likes l ON p.post_id = l.post_id
+GROUP BY p.post_id
+ORDER BY COUNT(DISTINCT like_id) DESC, p.post_id ASC
+LIMIT 3;
+
 -- Retrieve the latest notifications for a user.
+SELECT * FROM notifications
+WHERE user_id = 1
+ORDER BY notification_date DESC
+LIMIT 1;
 
 
 /*
